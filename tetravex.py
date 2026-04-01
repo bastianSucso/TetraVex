@@ -117,12 +117,9 @@ def meta_tetravex(
 ):
     metas: list[object] = []
 
+    # 1) Restricciones de adyacencia
     for posicion, celda in enumerate(celdas_tablero):
         fila, columna = divmod(posicion, n)
-        metas.append(membero(celda, piezas_indexadas))
-
-        for previa in celdas_tablero[:posicion]:
-            metas.append(neq(celda, previa))
 
         if columna > 0:
             izquierda = celdas_tablero[posicion - 1]
@@ -131,6 +128,16 @@ def meta_tetravex(
         if fila > 0:
             superior = celdas_tablero[posicion - n]
             metas.append(coinciden_vertical(superior, celda))
+
+    # 2) Dominios
+    for celda in celdas_tablero:
+        metas.append(membero(celda, piezas_indexadas))
+
+    # 3) Diferentes
+    total_celdas = len(celdas_tablero)
+    for i in range(total_celdas):
+        for j in range(i + 1, total_celdas):
+            metas.append(neq(celdas_tablero[i], celdas_tablero[j]))
 
     return lall(*metas)
 

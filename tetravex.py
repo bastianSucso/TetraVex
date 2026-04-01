@@ -11,11 +11,18 @@ Pieza = tuple[int, int, int, int]
 PiezaIndexada = tuple[int, int, int, int, int]
 TableroLineal = tuple[Pieza, ...]
 
+#aplicó domios, restricciones,  ..... , tuvo que agregar un predicado diferrent, porque usaba dos veces una pieza.
+#la posición de los predicados no debería importar, pero si importan, por tanto si es determinista, peor ende es preferible
+#primero poner todas las restricciones, y despues los dominios. 
+#usó not eq, pero cuando las variables están unificadas. Dominio es el que unifica las variables.
+
+#Orden que le funcionó al profe: Restricciones, Dominios, Diferentes.
+
 
 def es_pieza(valor: object) -> bool:
-    if not isinstance(valor, (tuple, list)) or len(valor) != 4:
+    if not isinstance(valor, (tuple, list)) or len(valor) != 4: #Recibe valor, en isintance, evalua si valor es tupla o lista y si esta es distinta de 4
         return False
-    return all(isinstance(lado, int) for lado in valor)
+    return all(isinstance(lado, int) for lado in valor) #evalúa lado en valor, y si lado es de tipo int.
 
 
 def tamano_tablero_desde_piezas(piezas: tuple[Pieza, ...]) -> int:
@@ -27,10 +34,10 @@ def tamano_tablero_desde_piezas(piezas: tuple[Pieza, ...]) -> int:
 
 
 def normalizar_entrada(puzzle: object) -> tuple[tuple[Pieza, ...], int]:
-    if not isinstance(puzzle, (tuple, list)) or not puzzle:
+    if not isinstance(puzzle, (tuple, list)) or not puzzle:    #Si puzzle no es tupla, o lista, o es [], (), "", 0, None -> False
         raise ValueError("El puzzle debe ser una lista/tupla no vacia.")
 
-    if all(es_pieza(pieza) for pieza in puzzle):
+    if all(es_pieza(pieza) for pieza in puzzle): #Aplica es_pieza a cada fieza del puzzle para evaluar si corresponden a una pieza
         piezas = tuple(tuple(int(v) for v in pieza) for pieza in puzzle)  # type: ignore[arg-type]
         return piezas, tamano_tablero_desde_piezas(piezas)
 
@@ -147,9 +154,9 @@ def resolver_con_minikanren(puzzle: object) -> TableroLineal | None:
 
 def ejemplo() -> None:
     puzzle = (
-        ((1, 9, 2, 2), (1, 9, 4, 9), (6, 8, 9, 7)),
-        ((9, 9, 2, 9), (0, 6, 9, 5), (0, 1, 5, 4)),
-        ((4, 0, 7, 7), (5, 1, 4, 7), (7, 0, 6, 4)),
+        ((1, 9, 1, 3), (8, 2, 7, 8), (2, 3, 9, 0)),
+        ((2, 2, 5, 1), (8, 0, 4, 5), (9, 4, 8, 4)),
+        ((0, 0, 2, 9), (4, 8, 3, 7), (4, 4, 8, 2))
     )
 
     piezas, n = normalizar_entrada(puzzle)

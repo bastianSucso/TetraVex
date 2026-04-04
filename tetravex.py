@@ -4,6 +4,7 @@ import random
 import time
 
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter
 from kanren import eq, lall, membero, run, var
 from kanren.constraints import neq
 
@@ -11,18 +12,11 @@ Pieza = tuple[int, int, int, int]
 PiezaIndexada = tuple[int, int, int, int, int]
 TableroLineal = tuple[Pieza, ...]
 
-#aplicó domios, restricciones,  ..... , tuvo que agregar un predicado diferrent, porque usaba dos veces una pieza.
-#la posición de los predicados no debería importar, pero si importan, por tanto si es determinista, peor ende es preferible
-#primero poner todas las restricciones, y despues los dominios. 
-#usó not eq, pero cuando las variables están unificadas. Dominio es el que unifica las variables.
-
-#Orden que le funcionó al profe: Restricciones, Dominios, Diferentes.
-
 
 def es_pieza(valor: object) -> bool:
-    if not isinstance(valor, (tuple, list)) or len(valor) != 4: #Recibe valor, en isintance, evalua si valor es tupla o lista y si esta es distinta de 4
+    if (not isinstance(valor, (tuple, list))) or len(valor) != 4: #Recibe valor, en isintance, evalua si valor es tupla o lista y si esta es distinta de 4
         return False
-    return all(isinstance(lado, int) for lado in valor) #evalúa lado en valor, y si lado es de tipo int.
+    return all(isinstance(lado, int) for lado in valor) #evalúa cada lado del valor, y si lado es de tipo   int devuelve true. 
 
 
 def tamano_tablero_desde_piezas(piezas: tuple[Pieza, ...]) -> int:
@@ -34,10 +28,10 @@ def tamano_tablero_desde_piezas(piezas: tuple[Pieza, ...]) -> int:
 
 
 def normalizar_entrada(puzzle: object) -> tuple[tuple[Pieza, ...], int]:
-    if not isinstance(puzzle, (tuple, list)) or not puzzle:    #Si puzzle no es tupla, o lista, o es [], (), "", 0, None -> False
+    if not isinstance(puzzle, (tuple, list)) or not puzzle:    #Si puzzle es tupla, o lista -> true (+not = false), o es [], (), "", 0, None -> False
         raise ValueError("El puzzle debe ser una lista/tupla no vacia.")
 
-    if all(es_pieza(pieza) for pieza in puzzle): #Aplica es_pieza a cada fieza del puzzle para evaluar si corresponden a una pieza
+    if all(es_pieza(elem) for elem in puzzle): #Aplica es_pieza a cada elemento para detectar si la entrada ya es plana
         piezas = tuple(tuple(int(v) for v in pieza) for pieza in puzzle)  # type: ignore[arg-type]
         return piezas, tamano_tablero_desde_piezas(piezas)
 
@@ -110,14 +104,8 @@ def coinciden_vertical(pieza_superior: object, pieza_inferior: object):
     )
 
 
-def meta_tetravex(
-    celdas_tablero: tuple[object, ...],
-    piezas_indexadas: tuple[PiezaIndexada, ...],
-    n: int,
-):
+def restricciones_adyacencia(celdas_tablero: tuple[object, ...], n: int):
     metas: list[object] = []
-
-    # 1) Restricciones de adyacencia
     for posicion, celda in enumerate(celdas_tablero):
         fila, columna = divmod(posicion, n)
 
@@ -129,17 +117,30 @@ def meta_tetravex(
             superior = celdas_tablero[posicion - n]
             metas.append(coinciden_vertical(superior, celda))
 
-    # 2) Dominios
-    for celda in celdas_tablero:
-        metas.append(membero(celda, piezas_indexadas))
-
-    # 3) Diferentes
-    total_celdas = len(celdas_tablero)
-    for i in range(total_celdas):
-        for j in range(i + 1, total_celdas):
-            metas.append(neq(celdas_tablero[i], celdas_tablero[j]))
-
     return lall(*metas)
+
+
+def dominio_celdas(celdas_tablero: tuple[object, ...], piezas_indexadas: tuple[PiezaIndexada, ...]):
+    return lall(*(membero(celda, piezas_indexadas) for celda in celdas_tablero))
+
+
+def diferencias_celdas(celdas_tablero: tuple[object, ...]):
+    total_celdas = len(celdas_tablero)
+    return lall(
+        *(neq(celdas_tablero[i], celdas_tablero[j]) for i in range(total_celdas) for j in range(i + 1, total_celdas))
+    )
+
+
+def tetravexproblem(
+    celdas_tablero: tuple[object, ...],
+    piezas_indexadas: tuple[PiezaIndexada, ...],
+    n: int,
+):
+    return lall(
+        restricciones_adyacencia(celdas_tablero, n),
+        dominio_celdas(celdas_tablero, piezas_indexadas),
+        diferencias_celdas(celdas_tablero),
+    )
 
 
 def resolver_con_minikanren(puzzle: object) -> TableroLineal | None:
@@ -147,7 +148,7 @@ def resolver_con_minikanren(puzzle: object) -> TableroLineal | None:
     piezas_indexadas = indexar_piezas(piezas)
     celdas_tablero = tuple(var() for _ in range(n * n))
 
-    soluciones = run(1, celdas_tablero, meta_tetravex(celdas_tablero, piezas_indexadas, n))
+    soluciones = run(1, celdas_tablero, tetravexproblem(celdas_tablero, piezas_indexadas, n))
     if not soluciones:
         return None
 
@@ -161,10 +162,10 @@ def resolver_con_minikanren(puzzle: object) -> TableroLineal | None:
 
 def ejemplo() -> None:
     puzzle = (
-        ((1, 9, 1, 3), (8, 2, 7, 8), (2, 3, 9, 0)),
-        ((2, 2, 5, 1), (8, 0, 4, 5), (9, 4, 8, 4)),
-        ((0, 0, 2, 9), (4, 8, 3, 7), (4, 4, 8, 2))
-    )
+        ((1,9,2,2),(1,9,4,9),(6,8,9,7)),
+        ((9,9,2,9),(0,6,9,5),(0,1,5,4)),
+        ((4,0,7,7),(5,1,4,7),(7,0,6,4))
+        )
 
     piezas, n = normalizar_entrada(puzzle)
     solucion = resolver_con_minikanren(piezas)
@@ -223,6 +224,9 @@ def benchmark_tiempos(
     graficar: bool = False,
     ruta_grafico: str = "benchmark_tetravex.png",
 ) -> None:
+    if any(not isinstance(n, int) for n in tamanos):
+        raise ValueError("Las dimensiones del tablero deben ser enteros.")
+
     tiempos_promedio: list[float] = []
 
     for n in tamanos:
@@ -242,7 +246,27 @@ def benchmark_tiempos(
         print(f"{n}x{n}: promedio {promedio:.6f} segundos ({repeticiones} corridas)")
 
     plt.figure(figsize=(8, 5))
-    plt.plot(tamanos, tiempos_promedio, marker="o")
+    plt.plot(tamanos, tiempos_promedio, marker="o", linewidth=1.8)
+    plt.scatter(tamanos, tiempos_promedio, s=35, zorder=3)
+    ax = plt.gca()
+
+    margen_izquierdo = min(tamanos) - 0.35
+    margen_derecho = max(tamanos) + 0.35
+    ax.set_xlim(margen_izquierdo, margen_derecho)
+    ax.set_xticks(list(tamanos))
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda valor, _pos: f"{int(valor)}"))
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda valor, _pos: f"{valor:.3f}"))
+
+    for n, tiempo in zip(tamanos, tiempos_promedio):
+        ax.hlines(y=tiempo, xmin=margen_izquierdo, xmax=n, colors="gray", linestyles="--", linewidth=0.8, alpha=0.65)
+        ax.annotate(
+            f"{tiempo:.6f}",
+            xy=(n, tiempo),
+            xytext=(6, 6),
+            textcoords="offset points",
+            fontsize=8,
+        )
+
     plt.xlabel("Dimension del tablero (n)")
     plt.ylabel("Tiempo promedio de resolucion (segundos)")
     plt.title("Benchmark TetraVex con miniKanren")

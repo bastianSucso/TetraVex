@@ -14,16 +14,18 @@ TableroLineal = tuple[Pieza, ...]
 
 
 def es_pieza(valor: object) -> bool:
-    if (not isinstance(valor, (tuple, list))) or len(valor) != 4: #Recibe valor, en isintance, evalua si valor es tupla o lista y si esta es distinta de 4
+    if (not isinstance(valor, (tuple, list))) or len(valor) != 4: #Recibe valor, en isintance, evalua si valor es tupla o lista y si esta es distinta de 4 (anidada retorna false)
         return False
-    return all(isinstance(lado, int) for lado in valor) #evalúa cada lado del valor, y si lado es de tipo   int devuelve true. 
+    return all(isinstance(lado, int) for lado in valor) #evalúa cada lado del valor, y si lado es de tipo int devuelve true. 
 
 
 def tamano_tablero_desde_piezas(piezas: tuple[Pieza, ...]) -> int:
     cantidad = len(piezas)
     n = int(cantidad**0.5)
     if n * n != cantidad:
-        raise ValueError("La cantidad de piezas no forma un tablero cuadrado.")
+        raise ValueError("La cantidad de piezas no forma un tablero cuadrado.") #- Si cantidad = 9 -> sqrt=3.0 -> int=3 -> 3*3=9 (pasa)
+                                                                                    #- Si cantidad = 10 -> sqrt=3.162... -> int=3 -> 3*3=9 (falla) 
+                                                                                    #Por eso el if n * n != cantidad sí es necesario
     return n
 
 
@@ -31,11 +33,11 @@ def normalizar_entrada(puzzle: object) -> tuple[tuple[Pieza, ...], int]:
     if not isinstance(puzzle, (tuple, list)) or not puzzle:    #Si puzzle es tupla, o lista -> true (+not = false), o es [], (), "", 0, None -> False
         raise ValueError("El puzzle debe ser una lista/tupla no vacia.")
 
-    if all(es_pieza(elem) for elem in puzzle): #Aplica es_pieza a cada elemento para detectar si la entrada ya es plana
+    if all(es_pieza(elem) for elem in puzzle): #Aplica es_pieza a cada elemento para detectar si la entrada ya es plana (revisar)
         piezas = tuple(tuple(int(v) for v in pieza) for pieza in puzzle)  # type: ignore[arg-type]
         return piezas, tamano_tablero_desde_piezas(piezas)
 
-    if not all(isinstance(fila, (tuple, list)) for fila in puzzle):
+    if not all(isinstance(fila, (tuple, list)) for fila in puzzle): #Anidado retorna falso
         raise ValueError("Entrada invalida: use puzzle plano o anidado n x n.")
 
     filas = tuple(puzzle)
@@ -55,7 +57,7 @@ def normalizar_entrada(puzzle: object) -> tuple[tuple[Pieza, ...], int]:
     piezas = tuple(piezas_planas)
     tamano_deducido = tamano_tablero_desde_piezas(piezas)
     if tamano_deducido != n:
-        raise ValueError("Inconsistencia en dimensiones del puzzle anidado.")
+        raise ValueError("Inconsistencia en dimensiones del puzzle anidado.") #if defensivo redundante, creo que nunca puede pasar.
     return piezas, n
 
 
@@ -121,14 +123,19 @@ def restricciones_adyacencia(celdas_tablero: tuple[object, ...], n: int):
 
 
 def dominio_celdas(celdas_tablero: tuple[object, ...], piezas_indexadas: tuple[PiezaIndexada, ...]):
-    return lall(*(membero(celda, piezas_indexadas) for celda in celdas_tablero))
+    metas: list[object] = []
+    for celda in celdas_tablero:
+        metas.append(membero(celda, piezas_indexadas))
+    return lall(*metas)
 
 
 def diferencias_celdas(celdas_tablero: tuple[object, ...]):
     total_celdas = len(celdas_tablero)
-    return lall(
-        *(neq(celdas_tablero[i], celdas_tablero[j]) for i in range(total_celdas) for j in range(i + 1, total_celdas))
-    )
+    metas: list[object] = []
+    for i in range(total_celdas):
+        for j in range(i + 1, total_celdas):
+            metas.append(neq(celdas_tablero[i], celdas_tablero[j]))
+    return lall(*metas)
 
 
 def tetravexproblem(
@@ -136,7 +143,7 @@ def tetravexproblem(
     piezas_indexadas: tuple[PiezaIndexada, ...],
     n: int,
 ):
-    return lall(
+    return lall( 
         restricciones_adyacencia(celdas_tablero, n),
         dominio_celdas(celdas_tablero, piezas_indexadas),
         diferencias_celdas(celdas_tablero),
@@ -146,7 +153,7 @@ def tetravexproblem(
 def resolver_con_minikanren(puzzle: object) -> TableroLineal | None:
     piezas, n = normalizar_entrada(puzzle)
     piezas_indexadas = indexar_piezas(piezas)
-    celdas_tablero = tuple(var() for _ in range(n * n))
+    celdas_tablero = tuple(var() for _ in range(n * n)) #instanciamos una tupla de n*n variables logicas en celdas_tablero
 
     soluciones = run(1, celdas_tablero, tetravexproblem(celdas_tablero, piezas_indexadas, n))
     if not soluciones:
@@ -167,13 +174,12 @@ def ejemplo() -> None:
         ((4,0,7,7),(5,1,4,7),(7,0,6,4))
         )
 
-    piezas, n = normalizar_entrada(puzzle)
-    solucion = resolver_con_minikanren(piezas)
+    solucion = resolver_con_minikanren(puzzle)
 
     if solucion is None:
         print("No se encontro solucion.")
         return
-
+    n =  len(puzzle)
     print("Solucion encontrada:\n")
     print(formatear_tablero(solucion, n))
 
